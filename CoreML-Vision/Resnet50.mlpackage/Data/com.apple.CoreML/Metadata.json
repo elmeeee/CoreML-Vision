@@ -1,0 +1,10 @@
+{
+  "MLModelDescriptionKey" : "Detects the dominant objects present in an image from a set of 1000 categories such as trees, animals, food, vehicles, person etc. The top-5 error from the original publication is 7.8%.",
+  "MLModelCreatorDefinedKey" : {
+    "com.apple.developer.machine-learning.models.version" : "1.0",
+    "com.apple.developer.machine-learning.models.name" : "Resnet50.mlmodel",
+    "com.apple.developer.machine-learning.models.category" : "image"
+  },
+  "MLModelAuthorKey" : "Original Paper: Kaiming He and Xiangyu Zhang and Shaoqing Ren and Jian Sun. Keras Implementation: François Chollet",
+  "MLModelLicenseKey" : "Please see https:\/\/github.com\/fchollet\/deep-learning-models for license information."
+}
