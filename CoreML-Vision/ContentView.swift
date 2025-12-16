@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  CoreML-Vision
 //
-//  Created by Elmee on 15/12/2025.
+//  Created by Elmee on 16/12/2025.
 //  Copyright © 2025 https://kamy.co. All rights reserved.
 //
 
@@ -29,13 +29,13 @@ struct ContentView: View {
                 CameraPreview(session: cameraManager.session)
                     .ignoresSafeArea()
                 
-                // Dark overlay for better text visibility
+                // Enhanced gradient overlay
                 LinearGradient(
                     colors: [
-                        .black.opacity(0.4),
+                        .black.opacity(0.5),
                         .clear,
                         .clear,
-                        .black.opacity(0.6)
+                        .black.opacity(0.7)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -45,12 +45,14 @@ struct ContentView: View {
                 // UI Overlay
                 VStack(spacing: 0) {
                     // Top control bar
-                    topControlBar
-                        .padding(.top, 50)
+                    TopControlBar(
+                        showSettings: $showSettings,
+                        showInfo: $showInfo,
+                        fps: cameraManager.fps,
+                        inferenceTime: cameraManager.inferenceTime
+                    )
                     
                     Spacer()
-                    
-                    // Bottom section with classification
                     bottomSection
                 }
                 
@@ -67,13 +69,13 @@ struct ContentView: View {
             cameraManager.stopSession()
         }
         .sheet(isPresented: $showInfo) {
-            InfoSheetView()
+            InfoPage()
         }
         .sheet(isPresented: $showHistory) {
-            HistorySheetView(cameraManager: cameraManager)
+            HistoryPage(cameraManager: cameraManager)
         }
         .sheet(isPresented: $showSettings) {
-            SettingsSheetView(cameraManager: cameraManager)
+            SettingsPage(cameraManager: cameraManager)
         }
         .fullScreenCover(isPresented: $showCapturedPhoto) {
             if let image = cameraManager.capturedImage {
@@ -86,407 +88,150 @@ struct ContentView: View {
             }
         }
     }
-    
-    // MARK: - Top Control Bar
-    private var topControlBar: some View {
-        HStack(spacing: 16) {
-            // Settings
-            ControlButton(icon: "gearshape.fill") {
-                showSettings = true
-            }
-            
-            Spacer()
-            
-            // Metrics
-            HStack(spacing: 12) {
-                CompactMetric(
-                    value: String(format: "%.0f", cameraManager.fps),
-                    unit: "FPS",
-                    color: fpsColor
-                )
-                
-                CompactMetric(
-                    value: String(format: "%.0f", cameraManager.inferenceTime),
-                    unit: "ms",
-                    color: inferenceColor
-                )
-            }
-            
-            Spacer()
-            
-            // Info
-            ControlButton(icon: "info.circle.fill") {
-                showInfo = true
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-    
-    // MARK: - Bottom Section
+
     private var bottomSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             // Classification result card
-            classificationCard
-                .padding(.horizontal, 20)
+            ClassificationCard(
+                topPrediction: cameraManager.topPrediction,
+                confidence: cameraManager.confidence,
+                topFivePredictions: cameraManager.topFivePredictions,
+                showTopFive: $showTopFive,
+                topFiveSnapshot: $topFiveSnapshot
+            )
+            .padding(.horizontal, 20)
             
             // Control buttons
-            HStack(spacing: 24) {
-                // History
-                ActionButton(
-                    icon: "clock.arrow.circlepath",
-                    label: "History",
-                    badge: cameraManager.classificationHistory.count
-                ) {
-                    showHistory = true
-                }
-                
-                // Capture button (center, larger)
-                CaptureButton {
+            BottomControlBar(
+                showHistory: $showHistory,
+                historyCount: cameraManager.classificationHistory.count,
+                isFlashOn: cameraManager.isFlashOn,
+                onCapturePhoto: {
                     cameraManager.capturePhoto()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         if cameraManager.capturedImage != nil {
                             showCapturedPhoto = true
                         }
                     }
-                }
-                
-                // Flash toggle
-                ActionButton(
-                    icon: cameraManager.isFlashOn ? "bolt.fill" : "bolt.slash.fill",
-                    label: "Flash",
-                    isActive: cameraManager.isFlashOn
-                ) {
+                },
+                onToggleFlash: {
                     cameraManager.toggleFlash()
                 }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 40)
-        }
-    }
-    
-    // MARK: - Classification Card
-    private var classificationCard: some View {
-        VStack(spacing: 16) {
-            // Main prediction
-            VStack(spacing: 12) {
-                Text(cameraManager.topPrediction)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                
-                // Confidence
-                HStack(spacing: 12) {
-                    Text("\(Int(cameraManager.confidence * 100))%")
-                        .font(.system(size: 32, weight: .heavy, design: .rounded))
-                        .foregroundStyle(confidenceColor)
-                        .contentTransition(.numericText())
-                    
-                    Text("Confidence")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(.black.opacity(0.5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(confidenceColor.opacity(0.5), lineWidth: 2)
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(.ultraThinMaterial)
-                    )
             )
-            
-            // Top 5 toggle
-            if !cameraManager.topFivePredictions.isEmpty {
-                Button(action: {
-                    // Capture snapshot when opening
-                    if !showTopFive {
-                        topFiveSnapshot = cameraManager.topFivePredictions
-                    }
-                    
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showTopFive.toggle()
-                    }
-                }) {
-                    HStack {
-                        Text("Top 5 Predictions")
-                            .font(.subheadline.weight(.semibold))
-                        
-                        Spacer()
-                        
-                        Image(systemName: showTopFive ? "chevron.up" : "chevron.down")
-                            .font(.caption.weight(.bold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.black.opacity(0.3))
-                    )
-                }
-                
-                // Top 5 list - uses snapshot to prevent glitching
-                if showTopFive && !topFiveSnapshot.isEmpty {
-                    VStack(spacing: 8) {
-                        ForEach(Array(topFiveSnapshot.enumerated()), id: \.element.0) { index, prediction in
-                            PredictionRow(
-                                rank: index + 1,
-                                label: prediction.0,
-                                confidence: prediction.1
-                            )
-                        }
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.black.opacity(0.3))
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
         }
     }
     
-    // MARK: - Permission Denied View
     private var permissionDeniedView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "camera.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.white.opacity(0.5))
+        VStack(spacing: 28) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "667eea").opacity(0.2), Color(hex: "764ba2").opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+                
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(hex: "667eea"), Color(hex: "764ba2")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
             
-            Text("Camera Access Required")
-                .font(.title2.bold())
-                .foregroundStyle(.white)
-            
-            Text("Please enable camera access in Settings")
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
+            VStack(spacing: 12) {
+                Text("Camera Access Required")
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
+                
+                Text("Please enable camera access in Settings to use this app")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
             
             Button(action: {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }) {
-                Text("Open Settings")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 16)
-                    .background(
-                        Capsule()
-                            .fill(.blue)
-                    )
+                HStack(spacing: 8) {
+                    Image(systemName: "gear")
+                        .font(.headline)
+                    Text("Open Settings")
+                        .font(.headline)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 16)
+                .background(
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "667eea"), Color(hex: "764ba2")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                )
+                .shadow(color: Color(hex: "667eea").opacity(0.5), radius: 15, x: 0, y: 8)
             }
         }
         .padding(40)
     }
     
-    // MARK: - Loading View
     private var loadingView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
             
             Text("Initializing Camera...")
+                .font(.headline)
                 .foregroundStyle(.white.opacity(0.7))
         }
     }
-    
-    // MARK: - Computed Properties
-    private var fpsColor: Color {
-        if cameraManager.fps >= 25 { return .green }
-        else if cameraManager.fps >= 15 { return .yellow }
-        else { return .red }
-    }
-    
-    private var inferenceColor: Color {
-        if cameraManager.inferenceTime < 50 { return .green }
-        else if cameraManager.inferenceTime < 100 { return .yellow }
-        else { return .red }
-    }
-    
-    private var confidenceColor: Color {
-        if cameraManager.confidence >= 0.7 { return .green }
-        else if cameraManager.confidence >= 0.4 { return .yellow }
-        else { return .orange }
-    }
 }
 
-// MARK: - Control Button
-struct ControlButton: View {
-    let icon: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(.black.opacity(0.5))
-                )
-        }
-    }
-}
-
-// MARK: - Compact Metric
-struct CompactMetric: View {
-    let value: String
-    let unit: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                .contentTransition(.numericText())
-            
-            Text(unit)
-                .font(.caption2.weight(.medium))
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            Capsule()
-                .fill(.black.opacity(0.5))
-        )
-    }
-}
-
-// MARK: - Action Button
-struct ActionButton: View {
-    let icon: String
-    let label: String
-    var badge: Int = 0
-    var isActive: Bool = false
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: icon)
-                        .font(.title2)
-                        .foregroundStyle(isActive ? .yellow : .white)
-                        .frame(width: 50, height: 50)
-                        .background(
-                            Circle()
-                                .fill(.black.opacity(0.5))
-                        )
-                    
-                    if badge > 0 {
-                        Text("\(badge)")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white)
-                            .padding(4)
-                            .background(Circle().fill(.red))
-                            .offset(x: 4, y: -4)
-                    }
-                }
-                
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-}
-
-// MARK: - Capture Button
-struct CaptureButton: View {
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .stroke(.white, lineWidth: 4)
-                    .frame(width: 70, height: 70)
-                
-                Circle()
-                    .fill(.white)
-                    .frame(width: 60, height: 60)
-            }
-        }
-    }
-}
-
-// MARK: - Prediction Row
-struct PredictionRow: View {
-    let rank: Int
-    let label: String
-    let confidence: Double
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("\(rank)")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white.opacity(0.5))
-                .frame(width: 20)
-            
-            Text(label.capitalized)
-                .font(.subheadline)
-                .foregroundStyle(.white)
-            
-            Spacer()
-            
-            Text("\(Int(confidence * 100))%")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.7))
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.white.opacity(0.1))
-        )
-    }
-}
-
-// MARK: - Captured Photo View
 struct CapturedPhotoView: View {
     let image: UIImage
     let label: String
     let confidence: Double
     @Binding var isPresented: Bool
     
+    var confidenceColor: Color {
+        ColorPalette.confidenceColor(for: confidence)
+    }
+    
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Background gradient
+            LinearGradient(
+                colors: [Color(hex: "0f0c29"), Color(hex: "302b63"), Color(hex: "24243e")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
             VStack(spacing: 0) {
                 // Top bar
                 HStack {
-                    Button(action: { isPresented = false }) {
-                        Image(systemName: "xmark")
-                            .font(.title3)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(.black.opacity(0.5)))
-                    }
+                    GlassButton(icon: "xmark", action: {
+                        isPresented = false
+                    }, size: 44)
                     
                     Spacer()
                     
-                    Button(action: sharePhoto) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.title3)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(.black.opacity(0.5)))
-                    }
+                    GlassButton(icon: "square.and.arrow.up", action: {
+                        sharePhoto()
+                    }, size: 44)
                 }
                 .padding()
                 
@@ -496,27 +241,49 @@ struct CapturedPhotoView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .cornerRadius(12)
-                    .padding()
-                
-                // Info
-                VStack(spacing: 8) {
-                    Text(label)
-                        .font(.title2.bold())
-                        .foregroundStyle(.white)
-                    
-                    Text("\(Int(confidence * 100))% Confidence")
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                .padding()
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
+                    .padding(.horizontal, 20)
                 
                 Spacer()
+                
+                // Info card
+                VStack(spacing: 16) {
+                    Text(label)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                    
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(confidenceColor)
+                        
+                        Text("\(Int(confidence * 100))% Confidence")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(confidenceColor)
+                    }
+                }
+                .padding(.vertical, 24)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24)
+                                .stroke(confidenceColor.opacity(0.3), lineWidth: 2)
+                        )
+                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 40)
             }
         }
     }
     
     private func sharePhoto() {
+        HapticManager.impact(.medium)
+        
         let activityController = UIActivityViewController(
             activityItems: [image],
             applicationActivities: nil
@@ -536,8 +303,4 @@ struct CapturedPhotoView: View {
             rootViewController.present(activityController, animated: true)
         }
     }
-}
-
-#Preview {
-    ContentView()
 }

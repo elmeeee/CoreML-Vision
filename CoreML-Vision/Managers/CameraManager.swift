@@ -11,14 +11,6 @@ import Vision
 import SwiftUI
 import UIKit
 
-struct ClassificationHistoryItem: Identifiable {
-    let id = UUID()
-    let label: String
-    let confidence: Double
-    let timestamp: Date
-    let image: UIImage?
-}
-
 @Observable
 class CameraManager: NSObject {
     var topPrediction: String = "Point camera at an object"
@@ -160,8 +152,7 @@ class CameraManager: NSObject {
             camera.unlockForConfiguration()
             
             // Haptic feedback
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
+            HapticManager.impact(.medium)
         } catch {
             print("Flash error: \(error)")
         }
@@ -178,8 +169,7 @@ class CameraManager: NSObject {
         photoOutput.capturePhoto(with: settings, delegate: self)
         
         // Haptic feedback
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.success)
+        HapticManager.notification(.success)
     }
     
     func addToHistory(image: UIImage?) {
@@ -210,8 +200,7 @@ class CameraManager: NSObject {
         averageConfidence = 0.0
         
         // Haptic feedback
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.warning)
+        HapticManager.notification(.warning)
     }
     
     private func startFPSTimer() {
@@ -253,8 +242,7 @@ class CameraManager: NSObject {
             // Haptic feedback for high confidence
             if topResult.confidence > 0.85 && self.topPrediction != topResult.identifier.capitalized {
                 DispatchQueue.main.async {
-                    let generator = UIImpactFeedbackGenerator(style: .light)
-                    generator.impactOccurred()
+                    HapticManager.impact(.light)
                 }
             }
             
@@ -278,7 +266,6 @@ class CameraManager: NSObject {
     }
 }
 
-// MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         frameCount += 1
@@ -291,11 +278,10 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 }
 
-// MARK: - AVCapturePhotoCaptureDelegate
 extension CameraManager: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         if let error = error {
-            print("❌ Photo capture error: \(error)")
+            print("Photo capture error: \(error)")
             return
         }
         
