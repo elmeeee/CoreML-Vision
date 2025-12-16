@@ -7,11 +7,20 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct SettingsPage: View {
     @Environment(\.dismiss) var dismiss
-    let cameraManager: CameraManager
+    @Environment(\.modelContext) private var modelContext
+    @Query private var items: [ClassificationItem]
+    
+    let totalItems: Int
     @State private var hapticEnabled = true
+    
+    var averageConfidence: Double {
+        guard !items.isEmpty else { return 0 }
+        return items.reduce(0.0) { $0 + $1.confidence } / Double(items.count)
+    }
     
     var body: some View {
         NavigationStack {
@@ -26,8 +35,8 @@ struct SettingsPage: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Performance Stats
-                        performanceSection
+                        // Statistics
+                        statisticsSection
                         
                         // Camera Settings
                         cameraSection
@@ -54,38 +63,22 @@ struct SettingsPage: View {
         }
     }
     
-    private var performanceSection: some View {
+    private var statisticsSection: some View {
         VStack(spacing: 12) {
-            SectionHeader(icon: "chart.xyaxis.line", title: "Performance")
-            
-            HStack(spacing: 12) {
-                MetricCard(
-                    icon: "speedometer",
-                    title: "FPS",
-                    value: String(format: "%.0f", cameraManager.fps),
-                    color: ColorPalette.fpsColor(for: cameraManager.fps)
-                )
-                
-                MetricCard(
-                    icon: "bolt.fill",
-                    title: "Inference",
-                    value: String(format: "%.0f ms", cameraManager.inferenceTime),
-                    color: ColorPalette.inferenceColor(for: cameraManager.inferenceTime)
-                )
-            }
+            SectionHeader(icon: "chart.xyaxis.line", title: "Statistics")
             
             HStack(spacing: 12) {
                 MetricCard(
                     icon: "photo.stack.fill",
                     title: "Total",
-                    value: "\(cameraManager.totalClassifications)",
+                    value: "\(items.count)",
                     color: Color(hex: "667eea")
                 )
                 
                 MetricCard(
                     icon: "chart.line.uptrend.xyaxis",
                     title: "Avg Conf.",
-                    value: String(format: "%.0f%%", cameraManager.averageConfidence * 100),
+                    value: String(format: "%.0f%%", averageConfidence * 100),
                     color: Color(hex: "38ef7d")
                 )
             }
@@ -94,19 +87,9 @@ struct SettingsPage: View {
     
     private var cameraSection: some View {
         VStack(spacing: 12) {
-            SectionHeader(icon: "camera.fill", title: "Camera")
+            SectionHeader(icon: "camera.fill", title: "Preferences")
             
             VStack(spacing: 10) {
-                SettingRow(
-                    icon: "bolt.fill",
-                    title: "Flash",
-                    subtitle: "Toggle camera flash",
-                    isOn: Binding(
-                        get: { cameraManager.isFlashOn },
-                        set: { _ in cameraManager.toggleFlash() }
-                    )
-                )
-                
                 SettingRow(
                     icon: "hand.tap.fill",
                     title: "Haptic Feedback",

@@ -22,9 +22,6 @@ class CameraManager: NSObject {
     var showPermissionDenied: Bool = false
     var isFlashOn: Bool = false
     var capturedImage: UIImage?
-    var classificationHistory: [ClassificationHistoryItem] = []
-    var totalClassifications: Int = 0
-    var averageConfidence: Double = 0.0
     
     private let captureSession = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
@@ -35,7 +32,6 @@ class CameraManager: NSObject {
     private var lastFrameTime: Date = Date()
     private var frameCount: Int = 0
     private var fpsUpdateTimer: Timer?
-    private var confidenceSum: Double = 0.0
     
     // CoreML Model
     private var visionModel: VNCoreMLModel? = {
@@ -172,37 +168,6 @@ class CameraManager: NSObject {
         HapticManager.notification(.success)
     }
     
-    func addToHistory(image: UIImage?) {
-        let item = ClassificationHistoryItem(
-            label: topPrediction,
-            confidence: confidence,
-            timestamp: Date(),
-            image: image
-        )
-        
-        classificationHistory.insert(item, at: 0)
-        
-        // Keep only last 20 items
-        if classificationHistory.count > 20 {
-            classificationHistory.removeLast()
-        }
-        
-        // Update statistics
-        totalClassifications += 1
-        confidenceSum += confidence
-        averageConfidence = confidenceSum / Double(totalClassifications)
-    }
-    
-    func clearHistory() {
-        classificationHistory.removeAll()
-        totalClassifications = 0
-        confidenceSum = 0.0
-        averageConfidence = 0.0
-        
-        // Haptic feedback
-        HapticManager.notification(.warning)
-    }
-    
     private func startFPSTimer() {
         fpsUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
@@ -292,7 +257,6 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         
         DispatchQueue.main.async {
             self.capturedImage = image
-            self.addToHistory(image: image)
         }
     }
 }

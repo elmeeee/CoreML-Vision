@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct CoreML_VisionApp: App {
@@ -14,5 +15,6 @@ struct CoreML_VisionApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: ClassificationItem.self)
     }
 }

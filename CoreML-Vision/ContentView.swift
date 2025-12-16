@@ -7,8 +7,12 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var historyItems: [ClassificationItem]
+    
     @State private var cameraManager = CameraManager()
     @State private var showTopFive = false
     @State private var showInfo = false
@@ -53,6 +57,8 @@ struct ContentView: View {
                     )
                     
                     Spacer()
+                    
+                    // Bottom section with classification
                     bottomSection
                 }
                 
@@ -72,10 +78,10 @@ struct ContentView: View {
             InfoPage()
         }
         .sheet(isPresented: $showHistory) {
-            HistoryPage(cameraManager: cameraManager)
+            HistoryPage()
         }
         .sheet(isPresented: $showSettings) {
-            SettingsPage(cameraManager: cameraManager)
+            SettingsPage(totalItems: historyItems.count)
         }
         .fullScreenCover(isPresented: $showCapturedPhoto) {
             if let image = cameraManager.capturedImage {
@@ -83,7 +89,10 @@ struct ContentView: View {
                     image: image,
                     label: cameraManager.topPrediction,
                     confidence: cameraManager.confidence,
-                    isPresented: $showCapturedPhoto
+                    isPresented: $showCapturedPhoto,
+                    onSave: { savedImage in
+                        saveToHistory(image: savedImage)
+                    }
                 )
             }
         }
@@ -104,7 +113,7 @@ struct ContentView: View {
             // Control buttons
             BottomControlBar(
                 showHistory: $showHistory,
-                historyCount: cameraManager.classificationHistory.count,
+                historyCount: historyItems.count,
                 isFlashOn: cameraManager.isFlashOn,
                 onCapturePhoto: {
                     cameraManager.capturePhoto()
@@ -198,6 +207,22 @@ struct ContentView: View {
                 .foregroundStyle(.white.opacity(0.7))
         }
     }
+    
+    private func saveToHistory(image: UIImage) {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
+        
+        let item = ClassificationItem(
+            label: cameraManager.topPrediction,
+            confidence: cameraManager.confidence,
+            timestamp: Date(),
+            imageData: imageData
+        )
+        
+        modelContext.insert(item)
+        try? modelContext.save()
+        
+        HapticManager.notification(.success)
+    }
 }
 
 struct CapturedPhotoView: View {
@@ -205,6 +230,9 @@ struct CapturedPhotoView: View {
     let label: String
     let confidence: Double
     @Binding var isPresented: Bool
+    let onSave: (UIImage) -> Void
+    
+    @State private var isSaved = false
     
     var confidenceColor: Color {
         ColorPalette.confidenceColor(for: confidence)
@@ -263,6 +291,42 @@ struct CapturedPhotoView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(confidenceColor)
                     }
+                    
+                    // Save button
+                    Button(action: {
+                        if !isSaved {
+                            onSave(image)
+                            isSaved = true
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: isSaved ? "checkmark.circle.fill" : "square.and.arrow.down.fill")
+                                .font(.headline)
+                            Text(isSaved ? "Saved to History" : "Save to History")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 14)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    isSaved ?
+                                    LinearGradient(
+                                        colors: [Color(hex: "38ef7d"), Color(hex: "11998e")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ) :
+                                    LinearGradient(
+                                        colors: [Color(hex: "667eea"), Color(hex: "764ba2")],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        )
+                        .shadow(color: (isSaved ? Color(hex: "38ef7d") : Color(hex: "667eea")).opacity(0.5), radius: 15, x: 0, y: 8)
+                    }
+                    .disabled(isSaved)
                 }
                 .padding(.vertical, 24)
                 .padding(.horizontal, 20)
